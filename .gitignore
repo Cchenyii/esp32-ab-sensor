@@ -1,0 +1,26 @@
+# Local secrets
+**/secrets.h
+
+# Arduino / build artifacts
+build/
+*.elf
+*.bin
+*.hex
+*.map
+*.o
+*.a
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python / misc tooling (if added later)
+__pycache__/
+*.pyc
+.env
+.env.*
