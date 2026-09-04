@@ -1,6 +1,9 @@
 // Board B: TCP server and OLED display
 
 #include <WiFi.h>
+#include <WebServer.h>
+#include <Update.h>
+#include <esp_ota_ops.h>
 #include <U8g2lib.h>
 #include <ESPmDNS.h>
 #include <freertos/FreeRTOS.h>
@@ -51,9 +54,146 @@ static bool sendAcknowledgement(WiFiClient& connection, uint32_t sequence,
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 
+#define FW_VERSION "1.1.1"
+
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, 22, 21, U8X8_PIN_NONE);
 WiFiServer server(8080);
 WiFiClient client;
+WebServer otaServer(80);
+
+enum class OtaUiState : uint8_t {
+  IDLE = 0,
+  RECEIVING,
+  SUCCESS,
+  FAILED,
+};
+
+static volatile OtaUiState otaUiState = OtaUiState::IDLE;
+static volatile uint8_t otaProgressPercent = 0;
+static uint32_t otaFailedAt = 0;
+
+static void drawOtaScreen() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  const OtaUiState state = otaUiState;
+  if (state == OtaUiState::RECEIVING) {
+    u8g2.drawStr(0, 14, "OTA Update");
+    u8g2.drawFrame(0, 24, 128, 12);
+    const uint8_t fill =
+        static_cast<uint8_t>((otaProgressPercent * 124) / 100);
+    if (fill > 0) {
+      u8g2.drawBox(2, 26, fill, 8);
+    }
+    char pct[12];
+    snprintf(pct, sizeof(pct), "%u%%", otaProgressPercent);
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(0, 52, pct);
+  } else if (state == OtaUiState::SUCCESS) {
+    u8g2.drawStr(0, 20, "OTA OK");
+    u8g2.drawStr(0, 36, "Rebooting...");
+  } else if (state == OtaUiState::FAILED) {
+    u8g2.drawStr(0, 20, "OTA Failed");
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(0, 36, Update.errorString());
+  }
+  u8g2.sendBuffer();
+}
+
+static void handleOtaRoot() {
+  String page = F(
+      "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+      "<title>ESP32-B OTA</title></head><body>"
+      "<h1>ESP32-B Firmware OTA</h1>"
+      "<p>Version: ");
+  page += FW_VERSION;
+  page += F(
+      "</p><form method='POST' action='/update' "
+      "enctype='multipart/form-data'>"
+      "<input type='file' name='firmware' accept='.bin'>"
+      "<br><br><input type='submit' value='Upload &amp; Flash'>"
+      "</form></body></html>");
+  otaServer.send(200, "text/html", page);
+}
+
+static void handleOtaUpload() {
+  HTTPUpload& upload = otaServer.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    otaUiState = OtaUiState::RECEIVING;
+    otaProgressPercent = 0;
+    Serial.printf("OTA start: %s\n", upload.filename.c_str());
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+      otaUiState = OtaUiState::FAILED;
+      otaFailedAt = millis();
+      Serial.printf("OTA begin failed: %s\n", Update.errorString());
+    }
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (otaUiState != OtaUiState::RECEIVING) return;
+    if (Update.write(upload.buf, upload.currentSize) !=
+        upload.currentSize) {
+      otaUiState = OtaUiState::FAILED;
+      otaFailedAt = millis();
+      Serial.printf("OTA write failed: %s\n", Update.errorString());
+      return;
+    }
+    const size_t total = Update.size();
+    if (total > 0) {
+      otaProgressPercent = static_cast<uint8_t>(
+          min(100UL, (Update.progress() * 100UL) / total));
+    } else if (otaProgressPercent < 95) {
+      otaProgressPercent++;
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (otaUiState != OtaUiState::RECEIVING) return;
+    if (Update.end(true)) {
+      otaProgressPercent = 100;
+      otaUiState = OtaUiState::SUCCESS;
+      Serial.printf("OTA complete: %u bytes\n", upload.totalSize);
+    } else {
+      otaUiState = OtaUiState::FAILED;
+      otaFailedAt = millis();
+      Serial.printf("OTA end failed: %s\n", Update.errorString());
+    }
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    Update.abort();
+    otaUiState = OtaUiState::FAILED;
+    otaFailedAt = millis();
+    Serial.println("OTA aborted");
+  }
+}
+
+static void handleOtaFinished() {
+  if (otaUiState == OtaUiState::SUCCESS) {
+    otaServer.send(200, "text/plain", "OK");
+    vTaskDelay(pdMS_TO_TICKS(800));
+    ESP.restart();
+  } else {
+    otaServer.send(500, "text/plain", Update.errorString());
+  }
+}
+
+static void confirmRunningFirmware() {
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  esp_ota_img_states_t state;
+  if (esp_ota_get_state_partition(running, &state) == ESP_OK &&
+      state == ESP_OTA_IMG_PENDING_VERIFY) {
+    esp_ota_mark_app_valid_cancel_rollback();
+    Serial.println("OTA image marked valid");
+  }
+}
+
+void OtaTask(void* pv) {
+  otaServer.on("/", HTTP_GET, handleOtaRoot);
+  otaServer.on("/update", HTTP_POST, handleOtaFinished, handleOtaUpload);
+  otaServer.begin();
+  Serial.println("HTTP OTA: http://<ip>/");
+
+  while (1) {
+    if (WiFi.status() == WL_CONNECTED) {
+      otaServer.handleClient();
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
 
 typedef struct {
   float temp, humi;
@@ -224,7 +364,8 @@ void ServerTask(void* pv) {
       lastStatsPrint = millis();
       Serial.printf(
           "Protocol frames=%lu crc=%lu len=%lu ver=%lu overflow=%lu "
-          "duplicate=%lu missed=%lu unknown=%lu ack=%lu ackFail=%lu\n",
+          "duplicate=%lu missed=%lu unknown=%lu ack=%lu ackFail=%lu "
+          "client=%d wifi=%d\n",
           (unsigned long)protocolStats.validFrames,
           (unsigned long)protocolStats.crcErrors,
           (unsigned long)protocolStats.lengthErrors,
@@ -234,7 +375,9 @@ void ServerTask(void* pv) {
           (unsigned long)protocolStats.missedFrames,
           (unsigned long)protocolStats.unknownTypes,
           (unsigned long)protocolStats.acknowledgementsSent,
-          (unsigned long)protocolStats.acknowledgementFailures);
+          (unsigned long)protocolStats.acknowledgementFailures,
+          client.connected() ? 1 : 0,
+          WiFi.status() == WL_CONNECTED ? 1 : 0);
     }
 
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -257,6 +400,17 @@ void DisplayTask(void* pv) {
 
   while (1) {
     if (watchdogRegistered) esp_task_wdt_reset();
+    if (otaUiState != OtaUiState::IDLE) {
+      if (otaUiState == OtaUiState::FAILED && otaFailedAt > 0 &&
+          millis() - otaFailedAt > 10000) {
+        otaUiState = OtaUiState::IDLE;
+        otaFailedAt = 0;
+      } else {
+        drawOtaScreen();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        continue;
+      }
+    }
     // Poll every 500ms; switch to Waiting after three missed 2s samples.
     if (xQueueReceive(displayQueue, &data, pdMS_TO_TICKS(500)) == pdTRUE) {
       lastData = xTaskGetTickCount();
@@ -278,7 +432,17 @@ void DisplayTask(void* pv) {
       if ((xTaskGetTickCount() - lastData) > pdMS_TO_TICKS(6000)) {
         u8g2.clearBuffer();
         u8g2.setFont(u8g2_font_ncenB08_tr);
-        u8g2.drawStr(0, 16, "Waiting...");
+        if (WiFi.status() != WL_CONNECTED) {
+          u8g2.drawStr(0, 16, "No WiFi");
+        } else if (!client.connected()) {
+          u8g2.drawStr(0, 16, "No client");
+          u8g2.setFont(u8g2_font_6x10_tf);
+          u8g2.drawStr(0, 32, WiFi.localIP().toString().c_str());
+        } else {
+          u8g2.drawStr(0, 16, "Waiting...");
+          u8g2.setFont(u8g2_font_6x10_tf);
+          u8g2.drawStr(0, 32, "TCP ok, no data");
+        }
         u8g2.sendBuffer();
       }
     }
@@ -288,17 +452,22 @@ void DisplayTask(void* pv) {
 
 void setup() {
   Serial.begin(115200);
+  confirmRunningFirmware();
+  Serial.printf("Firmware %s\n", FW_VERSION);
   Serial.println(SensorProtocol::selfTest()
                      ? "Protocol self-test: OK"
                      : "Protocol self-test: FAILED");
   u8g2.begin();
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) vTaskDelay(pdMS_TO_TICKS(500));
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
   if (!MDNS.begin("esp32-b")) {
     Serial.println("mDNS begin failed");
   } else {
     // Advertise TCP service so A can resolve esp32-b.local more reliably
     MDNS.addService("esp32b", "tcp", 8080);
+    MDNS.addService("http", "tcp", 80);
     Serial.println("mDNS: esp32-b.local");
   }
   server.begin();
@@ -331,6 +500,7 @@ void setup() {
   // Equal priority lets FreeRTOS time-slice networking and display work.
   xTaskCreate(ServerTask, "Serv", 4096, NULL, 2, NULL);
   xTaskCreate(DisplayTask, "Disp", 8192, NULL, 2, NULL);
+  xTaskCreate(OtaTask, "OTA", 8192, NULL, 1, NULL);
   vTaskDelete(NULL);
 }
 

@@ -2,7 +2,7 @@
 
 两块 ESP32 组成的嵌入式演示项目：**A 板采集温湿度与超声波距离，经 WiFi TCP 发到 B 板；B 板解析协议并在 OLED 上显示。**
 
-适合秋招作品集展示：FreeRTOS 双任务、二进制应用层协议、CRC、非阻塞 ACK/重传、mDNS 发现、任务看门狗。
+适合秋招作品集展示：FreeRTOS 双任务、二进制应用层协议、CRC、非阻塞 ACK/重传、mDNS 发现、任务看门狗、**B 板 HTTP OTA + OLED 进度**。
 
 ## 架构
 
@@ -73,6 +73,7 @@ copy secrets.h.example secrets.h
 
 - A：`Protocol self-test: OK`，周期性 ACK 统计
 - B：`Protocol frames=...` 增长且错误计数为 0，OLED 刷新温湿度与距离
+- B OTA：浏览器访问 `http://esp32-b.local/` 可上传 `.bin`，OLED 显示进度（见 [`docs/OTA.md`](docs/OTA.md)）
 
 ## 协议要点（V1）
 
@@ -105,9 +106,9 @@ esp32-ab-sensor/
 
 ## 后续规划（可选）
 
-1. HTTP OTA + OLED 进度 + 双 OTA 分区与回滚
-2. 架构图 / 稳定性数据 / Demo 视频写入作品集
-3. 将本仓库推送到 GitHub
+1. ~~B 板 HTTP OTA + OLED 进度~~（已完成，见 [`docs/OTA.md`](docs/OTA.md)）
+2. A 板 OTA 或经 B 集中升级
+3. 稳定性压测报告 / Demo 视频写入作品集
 
 ## 许可证
 

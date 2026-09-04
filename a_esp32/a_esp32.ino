@@ -127,6 +127,7 @@ void TCPTask(void* pv) {
 
         // --- mDNS primary discovery (project feature) ---
         bool ipValid = false;
+        const char* ipSource = "none";
         for (int tryN = 0; tryN < 3 && !ipValid; tryN++) {
           IPAddress mdnsIp;
           bool mdnsOk = WiFi.hostByName(serverHostname, mdnsIp);
@@ -134,20 +135,33 @@ void TCPTask(void* pv) {
           if (ipValid) {
             ip = mdnsIp;
             cachedIP = mdnsIp;
+            ipSource = "mDNS";
           } else if (tryN < 2) {
             vTaskDelay(pdMS_TO_TICKS(300));
           }
         }
 
-        if (!ipValid) {
-          if (cachedIP != IPAddress(0, 0, 0, 0)) {
-            ip = cachedIP;
-          } else {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            continue;
-          }
+        if (!ipValid && cachedIP != IPAddress(0, 0, 0, 0)) {
+          ip = cachedIP;
+          ipValid = true;
+          ipSource = "cache";
         }
 
+        if (!ipValid && SERVER_IP_FALLBACK != nullptr &&
+            SERVER_IP_FALLBACK[0] != '\0' &&
+            ip.fromString(SERVER_IP_FALLBACK)) {
+          ipValid = true;
+          ipSource = "fallback";
+        }
+
+        if (!ipValid) {
+          Serial.println("B not found (mDNS/cache/fallback all failed)");
+          vTaskDelay(pdMS_TO_TICKS(1000));
+          continue;
+        }
+
+        Serial.printf("Connecting to %s via %s ...\n",
+                      ip.toString().c_str(), ipSource);
         bool connOk = client.connect(ip, serverPort);
         if (connOk) {
           client.setTimeout(50);
@@ -168,6 +182,8 @@ void TCPTask(void* pv) {
               client.stop();
             }
           }
+        } else {
+          Serial.println("Connect failed");
         }
       }
     }
