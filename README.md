@@ -18,9 +18,9 @@
 | 角色 | 职责 | 主要技术点 |
 |------|------|------------|
 | **A** | 传感器采集 + TCP 客户端 | FreeRTOS、定点编码、有限重传、TCP keepalive |
-| **B** | TCP 服务端 + OLED | mDNS、环形缓冲拆粘包、序号去重、TWDT |
+| **B** | TCP 服务端 + OLED + **STM32 UART 摇杆** | mDNS、环形缓冲、序号去重、TWDT、Serial2 V1 |
 
-协议细节见 [`docs/ESP32_AB_PROTOCOL.md`](docs/ESP32_AB_PROTOCOL.md)。
+协议细节见 [`docs/ESP32_AB_PROTOCOL.md`](docs/ESP32_AB_PROTOCOL.md)。STM32 联调见下方「STM32 UART」。
 
 ## 硬件与引脚
 
@@ -39,6 +39,17 @@
 | OLED I2C SCL | GPIO 22 |
 | OLED I2C SDA | GPIO 21 |
 | OLED 驱动 | SSD1306 128×64（U8g2） |
+| STM32 链路 RX2 / TX2 | **GPIO 16 / 17**（115200，V1 `JOYSTICK_DATA`） |
+
+### STM32 UART（可选联调）
+
+| STM32F407 | ESP32 B |
+|-----------|---------|
+| PA2 USART2_TX | GPIO16 RX2 |
+| PA3 USART2_RX | GPIO17 TX2 |
+| GND | GND |
+
+B 固件 ≥ **1.2.0** 后，USB 串口会打印 `JOY seq=...`；若 OLED 仍接在 B 上会显示 Joystick 页。STM32 工程：https://github.com/Cchenyii/stm32-f407-joystick
 
 两板需接同一 WiFi（可用手机热点）。
 

@@ -14,6 +14,7 @@
 #include <lwip/tcp.h>
 #include "protocol.h"
 #include "secrets.h"
+#include "display_msg.h"
 
 static void enableTcpKeepAlive(WiFiClient &c) {
   int yes = 1;
@@ -54,7 +55,7 @@ static bool sendAcknowledgement(WiFiClient& connection, uint32_t sequence,
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 
-#define FW_VERSION "1.1.1"
+#define FW_VERSION "1.2.0"
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, 22, 21, U8X8_PIN_NONE);
 WiFiServer server(8080);
@@ -196,11 +197,6 @@ void OtaTask(void* pv) {
 }
 
 typedef struct {
-  float temp, humi;
-  int dist;
-} SensorData;
-
-typedef struct {
   uint32_t validFrames;
   uint32_t crcErrors;
   uint32_t lengthErrors;
@@ -211,13 +207,63 @@ typedef struct {
   uint32_t unknownTypes;
   uint32_t acknowledgementsSent;
   uint32_t acknowledgementFailures;
+  uint32_t joystickFrames;
 } ProtocolStats;
 
 QueueHandle_t displayQueue;
 ProtocolStats protocolStats = {};
 
+static const char* joyDirName(uint8_t direction) {
+  switch (direction) {
+    case SensorProtocol::JOY_LEFT:
+      return "LEFT";
+    case SensorProtocol::JOY_RIGHT:
+      return "RIGHT";
+    case SensorProtocol::JOY_UP:
+      return "UP";
+    case SensorProtocol::JOY_DOWN:
+      return "DOWN";
+    default:
+      return "CENTER";
+  }
+}
+
+static bool writeCompleteUartFrame(HardwareSerial& port, const uint8_t* frame,
+                                   size_t frameLength) {
+  size_t offset = 0;
+  const uint32_t deadline = millis() + 200;
+  while (offset < frameLength &&
+         static_cast<int32_t>(deadline - millis()) > 0) {
+    const size_t written = port.write(frame + offset, frameLength - offset);
+    if (written > 0) {
+      offset += written;
+    } else {
+      vTaskDelay(pdMS_TO_TICKS(1));
+    }
+  }
+  return offset == frameLength;
+}
+
+static bool sendUartAcknowledgement(HardwareSerial& port, uint32_t sequence,
+                                    SensorProtocol::AckStatus status) {
+  const uint8_t payload[] = {static_cast<uint8_t>(status)};
+  uint8_t frame[SensorProtocol::MAX_FRAME_SIZE];
+  const size_t length = SensorProtocol::encodeFrame(
+      SensorProtocol::ACK, sequence, payload, sizeof(payload), frame,
+      sizeof(frame));
+  return length > 0 && writeCompleteUartFrame(port, frame, length);
+}
+
+static void enqueueDisplay(const DisplayMsg& msg) {
+  if (xQueueSend(displayQueue, &msg, 0) != pdTRUE) {
+    DisplayMsg discarded;
+    xQueueReceive(displayQueue, &discarded, 0);
+    xQueueSend(displayQueue, &msg, 0);
+  }
+}
+
 void ServerTask(void* pv) {
-  SensorData data;
+  DisplayMsg data = {};
   TickType_t lastRx = xTaskGetTickCount();
   SensorProtocol::FrameParser parser;
   SensorProtocol::Frame frame;
@@ -343,14 +389,12 @@ void ServerTask(void* pv) {
         lastSequence = frame.sequence;
         protocolStats.validFrames++;
 
+        data = {};
+        data.kind = 0;
         data.temp = sensor.temperatureCentiC / 100.0f;
         data.humi = sensor.humidityCentiPercent / 100.0f;
         data.dist = sensor.distanceCm;
-        if (xQueueSend(displayQueue, &data, 0) != pdTRUE) {
-          SensorData discarded;
-          xQueueReceive(displayQueue, &discarded, 0);
-          xQueueSend(displayQueue, &data, 0);
-        }
+        enqueueDisplay(data);
         if (sendAcknowledgement(client, frame.sequence,
                                 SensorProtocol::ACK_OK)) {
           protocolStats.acknowledgementsSent++;
@@ -363,10 +407,11 @@ void ServerTask(void* pv) {
     if (millis() - lastStatsPrint >= 60000) {
       lastStatsPrint = millis();
       Serial.printf(
-          "Protocol frames=%lu crc=%lu len=%lu ver=%lu overflow=%lu "
+          "Protocol frames=%lu joy=%lu crc=%lu len=%lu ver=%lu overflow=%lu "
           "duplicate=%lu missed=%lu unknown=%lu ack=%lu ackFail=%lu "
           "client=%d wifi=%d\n",
           (unsigned long)protocolStats.validFrames,
+          (unsigned long)protocolStats.joystickFrames,
           (unsigned long)protocolStats.crcErrors,
           (unsigned long)protocolStats.lengthErrors,
           (unsigned long)protocolStats.versionErrors,
@@ -384,8 +429,104 @@ void ServerTask(void* pv) {
   }
 }
 
+void UartLinkTask(void* pv) {
+  SensorProtocol::FrameParser parser;
+  SensorProtocol::Frame frame;
+  bool hasLastSequence = false;
+  uint32_t lastSequence = 0;
+  bool watchdogRegistered = esp_task_wdt_status(NULL) == ESP_OK;
+  if (!watchdogRegistered) {
+    watchdogRegistered = esp_task_wdt_add(NULL) == ESP_OK;
+  }
+
+  while (1) {
+    if (watchdogRegistered) esp_task_wdt_reset();
+
+    uint8_t chunk[64];
+    size_t n = 0;
+    while (Serial2.available() && n < sizeof(chunk)) {
+      chunk[n++] = static_cast<uint8_t>(Serial2.read());
+    }
+    if (n > 0) {
+      if (parser.push(chunk, n) ==
+          SensorProtocol::ParseResult::BUFFER_OVERFLOW) {
+        protocolStats.bufferOverflows++;
+      }
+    }
+
+    while (true) {
+      const SensorProtocol::ParseResult result = parser.next(frame);
+      if (result == SensorProtocol::ParseResult::NONE) break;
+      if (result == SensorProtocol::ParseResult::CRC_ERROR) {
+        protocolStats.crcErrors++;
+        sendUartAcknowledgement(Serial2, 0, SensorProtocol::ACK_CRC_ERROR);
+        continue;
+      }
+      if (result == SensorProtocol::ParseResult::LENGTH_ERROR) {
+        protocolStats.lengthErrors++;
+        continue;
+      }
+      if (result == SensorProtocol::ParseResult::VERSION_ERROR) {
+        protocolStats.versionErrors++;
+        continue;
+      }
+      if (result == SensorProtocol::ParseResult::BUFFER_OVERFLOW) continue;
+
+      if (frame.type != SensorProtocol::JOYSTICK_DATA) {
+        protocolStats.unknownTypes++;
+        sendUartAcknowledgement(Serial2, frame.sequence,
+                                SensorProtocol::ACK_TYPE_ERROR);
+        continue;
+      }
+
+      SensorProtocol::JoystickPayload joy;
+      if (!SensorProtocol::decodeJoystickPayload(frame, joy)) {
+        protocolStats.lengthErrors++;
+        continue;
+      }
+
+      if (hasLastSequence) {
+        const uint32_t delta = frame.sequence - lastSequence;
+        if (delta == 0 || delta >= 0x80000000UL) {
+          protocolStats.duplicateFrames++;
+          sendUartAcknowledgement(Serial2, frame.sequence,
+                                  SensorProtocol::ACK_OK);
+          protocolStats.acknowledgementsSent++;
+          continue;
+        }
+        if (delta > 1) protocolStats.missedFrames += delta - 1;
+      }
+      hasLastSequence = true;
+      lastSequence = frame.sequence;
+      protocolStats.validFrames++;
+      protocolStats.joystickFrames++;
+
+      DisplayMsg msg = {};
+      msg.kind = 1;
+      msg.joyX = joy.x;
+      msg.joyY = joy.y;
+      msg.joyDir = joy.direction;
+      msg.joySw = joy.sw;
+      enqueueDisplay(msg);
+
+      if (sendUartAcknowledgement(Serial2, frame.sequence,
+                                  SensorProtocol::ACK_OK)) {
+        protocolStats.acknowledgementsSent++;
+      } else {
+        protocolStats.acknowledgementFailures++;
+      }
+
+      Serial.printf("JOY seq=%lu X=%u Y=%u %s SW=%u\n",
+                    (unsigned long)frame.sequence, joy.x, joy.y,
+                    joyDirName(joy.direction), joy.sw);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
 void DisplayTask(void* pv) {
-  SensorData data;
+  DisplayMsg data;
   char buf[32];
   TickType_t lastData = xTaskGetTickCount();
   bool watchdogRegistered = esp_task_wdt_status(NULL) == ESP_OK;
@@ -416,14 +557,25 @@ void DisplayTask(void* pv) {
       lastData = xTaskGetTickCount();
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_ncenB08_tr);
-      u8g2.drawStr(0, 16, "Sensor Data");
-      u8g2.setFont(u8g2_font_6x10_tf);
-      snprintf(buf, sizeof(buf), "Temp: %.1f C", data.temp);
-      u8g2.drawStr(0, 32, buf);
-      snprintf(buf, sizeof(buf), "Humi: %.1f %%", data.humi);
-      u8g2.drawStr(0, 44, buf);
-      snprintf(buf, sizeof(buf), "Dist: %d cm", data.dist);
-      u8g2.drawStr(0, 56, buf);
+      if (data.kind == 1) {
+        u8g2.drawStr(0, 16, "Joystick UART");
+        u8g2.setFont(u8g2_font_6x10_tf);
+        snprintf(buf, sizeof(buf), "X:%u Y:%u", data.joyX, data.joyY);
+        u8g2.drawStr(0, 32, buf);
+        snprintf(buf, sizeof(buf), "Dir:%s", joyDirName(data.joyDir));
+        u8g2.drawStr(0, 44, buf);
+        snprintf(buf, sizeof(buf), "SW:%u", data.joySw);
+        u8g2.drawStr(0, 56, buf);
+      } else {
+        u8g2.drawStr(0, 16, "Sensor Data");
+        u8g2.setFont(u8g2_font_6x10_tf);
+        snprintf(buf, sizeof(buf), "Temp: %.1f C", data.temp);
+        u8g2.drawStr(0, 32, buf);
+        snprintf(buf, sizeof(buf), "Humi: %.1f %%", data.humi);
+        u8g2.drawStr(0, 44, buf);
+        snprintf(buf, sizeof(buf), "Dist: %d cm", data.dist);
+        u8g2.drawStr(0, 56, buf);
+      }
       u8g2.sendBuffer();
     } else {
       // Sensor period is 2s. Waiting at exactly 2s caused false alarms from
@@ -438,6 +590,7 @@ void DisplayTask(void* pv) {
           u8g2.drawStr(0, 16, "No client");
           u8g2.setFont(u8g2_font_6x10_tf);
           u8g2.drawStr(0, 32, WiFi.localIP().toString().c_str());
+          u8g2.drawStr(0, 48, "UART joy ready");
         } else {
           u8g2.drawStr(0, 16, "Waiting...");
           u8g2.setFont(u8g2_font_6x10_tf);
@@ -452,11 +605,14 @@ void DisplayTask(void* pv) {
 
 void setup() {
   Serial.begin(115200);
+  // STM32 V1 UART link: GPIO16=RX2, GPIO17=TX2 @ 115200
+  Serial2.begin(115200, SERIAL_8N1, 16, 17);
   confirmRunningFirmware();
   Serial.printf("Firmware %s\n", FW_VERSION);
   Serial.println(SensorProtocol::selfTest()
                      ? "Protocol self-test: OK"
                      : "Protocol self-test: FAILED");
+  Serial.println("UART2 joystick link: RX=16 TX=17");
   u8g2.begin();
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) vTaskDelay(pdMS_TO_TICKS(500));
@@ -471,7 +627,7 @@ void setup() {
     Serial.println("mDNS: esp32-b.local");
   }
   server.begin();
-  displayQueue = xQueueCreate(20, sizeof(SensorData));
+  displayQueue = xQueueCreate(20, sizeof(DisplayMsg));
 
   // Arduino-ESP32 may initialize TWDT before setup(). Reconfigure it when
   // already active; initialize only when it does not exist.
@@ -499,6 +655,7 @@ void setup() {
 
   // Equal priority lets FreeRTOS time-slice networking and display work.
   xTaskCreate(ServerTask, "Serv", 4096, NULL, 2, NULL);
+  xTaskCreate(UartLinkTask, "Uart", 4096, NULL, 2, NULL);
   xTaskCreate(DisplayTask, "Disp", 8192, NULL, 2, NULL);
   xTaskCreate(OtaTask, "OTA", 8192, NULL, 1, NULL);
   vTaskDelete(NULL);
