@@ -49,9 +49,10 @@ CRC参数：
 
 | Type | 名称 | 方向 | Payload |
 |---:|---|---|---|
-| `0x01` | SENSOR_DATA | A → B | 传感器数据 |
-| `0x02` | ACK | B → A | 处理结果 |
+| `0x01` | SENSOR_DATA | A → B（TCP） | 传感器数据 |
+| `0x02` | ACK | B → 对端 | 处理结果 |
 | `0x03` | HEARTBEAT | 双向 | 运行状态 |
+| `0x04` | JOYSTICK_DATA | STM32 → B（UART） | 摇杆状态 |
 | `0x10` | OTA_STATUS | 双向 | OTA状态，后续版本使用 |
 
 ### 4.1 SENSOR_DATA
@@ -68,7 +69,20 @@ Payload长度固定为6字节。
 
 例如：温度27.35°C编码为整数2735。
 
-### 4.2 ACK
+### 4.2 JOYSTICK_DATA
+
+与 SENSOR_DATA 共用同一 V1 帧信封（Magic/Version/Seq/CRC）；Payload 同样固定 6 字节，便于 STM32 与 ESP32 同构联调。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| X | uint16 | ADC 原始值 0～4095 |
+| Y | uint16 | ADC 原始值 0～4095 |
+| Direction | uint8 | 0=CENTER,1=LEFT,2=RIGHT,3=UP,4=DOWN |
+| SW | uint8 | 1=按下，0=松开 |
+
+传输：STM32 USART2（115200）→ ESP32 B 板 `Serial2`（GPIO16 RX / GPIO17 TX），B 回复 ACK。
+
+### 4.3 ACK
 
 ACK帧的Sequence与被确认帧相同。
 
@@ -143,5 +157,6 @@ B板保存最近一次成功处理的Sequence：
 3. [已完成] 实现B板环形缓冲区和解析状态机。
 4. [已完成] 将文本SENSOR_DATA替换为二进制SENSOR_DATA。
 5. [已完成] 非阻塞ACK、超时重传、序号去重和漏帧统计。
-6. 进行拆包、粘包、CRC错误和ACK丢失测试。
-7. 完成后删除V0文本协议。
+6. [已完成] B板 HTTP OTA（双分区写入 + OLED 进度 + 启动确认）。
+7. [进行中] STM32 → B：JOYSTICK_DATA UART 同构联调（CRC/ACK）。
+8. 进行拆包、粘包、CRC错误和ACK丢失测试。

@@ -103,6 +103,27 @@ bool decodeSensorPayload(const Frame& frame, SensorPayload& output) {
   return true;
 }
 
+size_t encodeJoystickFrame(uint32_t sequence, uint16_t x, uint16_t y,
+                           uint8_t direction, uint8_t sw, uint8_t* output,
+                           size_t outputCapacity) {
+  uint8_t payload[6];
+  writeU16Be(payload, x);
+  writeU16Be(payload + 2, y);
+  payload[4] = direction;
+  payload[5] = sw ? 1 : 0;
+  return encodeFrame(JOYSTICK_DATA, sequence, payload, sizeof(payload),
+                     output, outputCapacity);
+}
+
+bool decodeJoystickPayload(const Frame& frame, JoystickPayload& output) {
+  if (frame.type != JOYSTICK_DATA || frame.payloadLength != 6) return false;
+  output.x = readU16Be(frame.payload);
+  output.y = readU16Be(frame.payload + 2);
+  output.direction = frame.payload[4];
+  output.sw = frame.payload[5];
+  return true;
+}
+
 RingBuffer::RingBuffer() : head_(0), tail_(0), size_(0) {}
 
 bool RingBuffer::push(uint8_t value) {
