@@ -16,7 +16,16 @@ enum MessageType : uint8_t {
   SENSOR_DATA = 0x01,
   ACK = 0x02,
   HEARTBEAT = 0x03,
+  JOYSTICK_DATA = 0x04,  // STM32 UART link (same V1 envelope)
   OTA_STATUS = 0x10,
+};
+
+enum JoyDirection : uint8_t {
+  JOY_CENTER = 0,
+  JOY_LEFT = 1,
+  JOY_RIGHT = 2,
+  JOY_UP = 3,
+  JOY_DOWN = 4,
 };
 
 enum AckStatus : uint8_t {
@@ -50,6 +59,13 @@ struct SensorPayload {
   uint16_t distanceCm;
 };
 
+struct JoystickPayload {
+  uint16_t x;
+  uint16_t y;
+  uint8_t direction;  // JoyDirection
+  uint8_t sw;         // 1=pressed
+};
+
 uint16_t crc16Ccitt(const uint8_t* data, size_t length);
 
 size_t encodeFrame(uint8_t type, uint32_t sequence,
@@ -61,6 +77,12 @@ size_t encodeSensorFrame(uint32_t sequence, float temperatureC,
                          uint8_t* output, size_t outputCapacity);
 
 bool decodeSensorPayload(const Frame& frame, SensorPayload& output);
+
+size_t encodeJoystickFrame(uint32_t sequence, uint16_t x, uint16_t y,
+                           uint8_t direction, uint8_t sw, uint8_t* output,
+                           size_t outputCapacity);
+
+bool decodeJoystickPayload(const Frame& frame, JoystickPayload& output);
 
 class RingBuffer {
  public:
