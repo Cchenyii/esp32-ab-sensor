@@ -158,5 +158,5 @@ B板保存最近一次成功处理的Sequence：
 4. [已完成] 将文本SENSOR_DATA替换为二进制SENSOR_DATA。
 5. [已完成] 非阻塞ACK、超时重传、序号去重和漏帧统计。
 6. [已完成] B板 HTTP OTA（双分区写入 + OLED 进度 + 启动确认）。
-7. [进行中] STM32 → B：JOYSTICK_DATA UART 同构联调（CRC/ACK）。
-8. 进行拆包、粘包、CRC错误和ACK丢失测试。
+7. [已完成] STM32 → B：JOYSTICK_DATA UART 同构联调（CRC/ACK）。
+8. [已完成] 协议自测覆盖拆包、粘包与CRC错误；ACK丢失和网络抖动继续通过实机记录验证。

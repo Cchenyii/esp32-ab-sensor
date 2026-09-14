@@ -55,11 +55,16 @@ B 板实际用途：
 - `DisplayTask`：温湿度 / 距离，或 No WiFi / No client / Waiting
 - OTA：进度条 + 成功/失败文字
 
-相关文件：`b_esp32/b_esp32.ino`（`u8g2` 对象、`DisplayTask`、`drawOtaUi`）
+相关文件：`b_esp32/b_esp32.ino`（`u8g2` 对象、`DisplayTask`、`drawOtaScreen`）
 
-> 注意：构造函数写成了 `u8g2(U8G2_R0, 22, 21, U8X8_PIN_NONE)`。  
-> U8g2 官方 HW_I2C 参数顺序是 `(旋转, reset, clock, data)`，和 README 的「SCL=22 SDA=21」不完全一致。  
-> **搬家时以杜邦线实际接法 + README 为准**；接到 F407 时重新配 I2C，不要照搬这个构造参数。
+B 板 U8g2 硬件 I2C 构造参数为：
+
+```cpp
+u8g2(U8G2_R0, U8X8_PIN_NONE, 22, 21)
+```
+
+参数依次为旋转方向、Reset、SCL、SDA，与 README 的接线一致。接到 F407
+时应在 CubeMX 中重新配置 I2C1 PB6/PB7，不直接照搬 ESP32 引脚。
 
 ---
 

@@ -2,17 +2,19 @@
 
 两块 ESP32 组成的嵌入式演示项目：**A 板采集温湿度与超声波距离，经 WiFi TCP 发到 B 板；B 板解析协议并在 OLED 上显示。**
 
-适合秋招作品集展示：FreeRTOS 双任务、二进制应用层协议、CRC、非阻塞 ACK/重传、mDNS 发现、任务看门狗、**B 板 HTTP OTA + OLED 进度**。
+适合秋招作品集展示：FreeRTOS 多任务、二进制应用层协议、CRC、非阻塞 ACK/重传、mDNS 发现、任务看门狗、**B 板 HTTP OTA + OLED 进度**。
 
 ## 架构
 
 ```text
-[A: DHT22 + HC-SR04]                  [B: SSD1306 OLED]
- SensorTask ──queue──> TCPTask          ServerTask ──queue──> DisplayTask
-        |                                      |
-        +---- TCP :8080 / V1 binary frame -----+
-        |         mDNS: esp32-b.local          |
-        +---------- ACK / retransmit ----------+
+[A: DHT22 + HC-SR04]                         [B: SSD1306 OLED]
+ SensorTask ──queue──> TCPTask ──TCP :8080──> ServerTask ──queue──> DisplayTask
+                              <──── ACK ─────
+                                     ^
+[STM32F407 joystick] ──UART V1 :115200──────> UartLinkTask
+
+[Browser] ──HTTP :80 / firmware.bin─────────> OtaTask ──> dual OTA partitions
+                     mDNS: esp32-b.local
 ```
 
 | 角色 | 职责 | 主要技术点 |
@@ -60,8 +62,13 @@ B 固件 ≥ **1.2.0** 后，USB 串口会打印 `JOY seq=...`；若 OLED 仍接
 
 ## 快速开始
 
-1. 克隆或打开本仓库目录：
-   `C:\Users\CJY13\Documents\esp32-ab-sensor`
+1. 克隆并进入本仓库：
+
+```bash
+git clone https://github.com/Cchenyii/esp32-ab-sensor.git
+cd esp32-ab-sensor
+```
+
 2. 为每块板配置 WiFi（勿提交真实密码）：
 
 ```text
@@ -108,10 +115,17 @@ esp32-ab-sensor/
 │   ├── protocol.h / .cpp
 │   ├── secrets.h.example
 │   └── secrets.h            # 本地文件，已 gitignore
-├── b_esp32/                 # B 板草图
+├── b_esp32/                 # B 板 TCP/UART/OLED/OTA
+│   ├── b_esp32.ino
+│   ├── display_msg.h
+│   ├── protocol.h / .cpp
+│   └── secrets.h.example
 ├── docs/
-│   └── ESP32_AB_PROTOCOL.md
+│   ├── ESP32_AB_PROTOCOL.md
+│   ├── OLED_I2C_NOTES.md
+│   └── OTA.md
 ├── README.md
+├── LICENSE
 └── .gitignore
 ```
 
@@ -123,4 +137,4 @@ esp32-ab-sensor/
 
 ## 许可证
 
-个人作品集项目；如需开源许可可再补充。
+本项目原创代码使用 [MIT License](LICENSE)。第三方库分别遵循其自身许可证。

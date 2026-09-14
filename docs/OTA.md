@@ -16,7 +16,7 @@
 3. **工具 → Partition Scheme**：选择带 **OTA** 的分区，例如：
    - `Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)`（4MB Flash 常用）
 4. **USB 线烧录一次**（分区表变更后必须重新全量烧录）
-5. 串口监视器 115200，确认打印 `Firmware 1.1.0` 和 `IP: x.x.x.x`
+5. 串口监视器 115200，确认打印 `Firmware 1.2.0`（或当前版本号）和 `IP: x.x.x.x`
 
 > 若未选 OTA 分区，`Update.begin()` 会失败，OLED 显示 `OTA Failed`。
 

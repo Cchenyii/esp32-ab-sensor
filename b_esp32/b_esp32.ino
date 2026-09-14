@@ -57,7 +57,8 @@ const char* password = WIFI_PASSWORD;
 
 #define FW_VERSION "1.2.0"
 
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, 22, 21, U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
+    U8G2_R0, U8X8_PIN_NONE, 22, 21);
 WiFiServer server(8080);
 WiFiClient client;
 WebServer otaServer(80);
@@ -274,11 +275,9 @@ void ServerTask(void* pv) {
   if (!watchdogRegistered) {
     watchdogRegistered = esp_task_wdt_add(NULL) == ESP_OK;
   }
-  //#region agent log
   if (!watchdogRegistered) {
     Serial.println("ServerTask watchdog registration failed");
   }
-  //#endregion
 
   while (1) {
     if (watchdogRegistered) esp_task_wdt_reset();
@@ -533,11 +532,9 @@ void DisplayTask(void* pv) {
   if (!watchdogRegistered) {
     watchdogRegistered = esp_task_wdt_add(NULL) == ESP_OK;
   }
-  //#region agent log
   if (!watchdogRegistered) {
     Serial.println("DisplayTask watchdog registration failed");
   }
-  //#endregion
 
   while (1) {
     if (watchdogRegistered) esp_task_wdt_reset();
@@ -641,12 +638,10 @@ void setup() {
       setupTaskStatus == ESP_ERR_INVALID_STATE
           ? esp_task_wdt_init(&twdt_config)
           : esp_task_wdt_reconfigure(&twdt_config);
-  //#region agent log
   if (watchdogConfigResult != ESP_OK) {
     Serial.printf("Watchdog configuration failed: 0x%x\n",
                   watchdogConfigResult);
   }
-  //#endregion
 
   // If Arduino subscribed loopTask, unsubscribe before deleting it below.
   if (setupTaskStatus == ESP_OK) {
