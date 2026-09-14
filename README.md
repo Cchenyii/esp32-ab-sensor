@@ -93,6 +93,8 @@ copy secrets.h.example secrets.h
 - B：`Protocol frames=...` 增长且错误计数为 0，OLED 刷新温湿度与距离
 - B OTA：浏览器访问 `http://esp32-b.local/` 可上传 `.bin`，OLED 显示进度（见 [`docs/OTA.md`](docs/OTA.md)）
 
+实机验收条目与串口现象见 [`docs/TEST_RECORD.md`](docs/TEST_RECORD.md)。
+
 ## 协议要点（V1）
 
 - 帧：`AA 55 | ver | type | seq | len | payload | CRC16-CCITT-FALSE`
@@ -123,7 +125,8 @@ esp32-ab-sensor/
 ├── docs/
 │   ├── ESP32_AB_PROTOCOL.md
 │   ├── OLED_I2C_NOTES.md
-│   └── OTA.md
+│   ├── OTA.md
+│   └── TEST_RECORD.md
 ├── README.md
 ├── LICENSE
 └── .gitignore
@@ -133,7 +136,7 @@ esp32-ab-sensor/
 
 1. ~~B 板 HTTP OTA + OLED 进度~~（已完成，见 [`docs/OTA.md`](docs/OTA.md)）
 2. A 板 OTA 或经 B 集中升级
-3. 稳定性压测报告 / Demo 视频写入作品集
+3. Demo 视频写入作品集
 
 ## 许可证
 
