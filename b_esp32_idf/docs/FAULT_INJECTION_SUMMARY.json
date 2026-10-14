@@ -1,0 +1,650 @@
+{
+  "date": "2026-10-14",
+  "timezone": "Asia/Shanghai",
+  "time_range": [
+    "2026-10-14T17:23:38.067344+08:00",
+    "2026-10-14T17:28:29.191210+08:00"
+  ],
+  "hardware_scored": 10,
+  "hardware_scored_passed": 10,
+  "hardware_total_actions_including_pilot": 11,
+  "pilot": {
+    "stm_resets": 1,
+    "scored": false,
+    "reason": "CLI reset succeeded; pilot runner rejected a different receipt text and ended before recovery capture.",
+    "receipt": "campaign-01/stm-reset-1.log",
+    "summary": "campaign-01/summary.json"
+  },
+  "baseline": {
+    "joy_frames": 275,
+    "sensor_frames": 30,
+    "relay_acks": 60,
+    "heartbeat_count": 60,
+    "observed_sequence_gaps": [],
+    "uart_counter_window": {
+      "window_board_ms": 50130,
+      "first": {
+        "accepted": 86875,
+        "duplicates": 0,
+        "rejected": 32,
+        "uart_errors": 0,
+        "ack_errors": 0,
+        "valid": 1,
+        "relay_sent": 19426,
+        "relay_acks": 19257,
+        "relay_retries": 96,
+        "relay_failures": 32
+      },
+      "last": {
+        "accepted": 87104,
+        "duplicates": 0,
+        "rejected": 32,
+        "uart_errors": 0,
+        "ack_errors": 0,
+        "valid": 1,
+        "relay_sent": 19476,
+        "relay_acks": 19307,
+        "relay_retries": 96,
+        "relay_failures": 32
+      },
+      "delta": {
+        "accepted": 229,
+        "duplicates": 0,
+        "rejected": 0,
+        "uart_errors": 0,
+        "ack_errors": 0,
+        "valid": 0,
+        "relay_sent": 50,
+        "relay_acks": 50,
+        "relay_retries": 0,
+        "relay_failures": 0
+      }
+    },
+    "network_counter_window": {
+      "window_board_ms": 50055,
+      "first": {
+        "wifi": 1,
+        "client": 1,
+        "valid": 1,
+        "accepted": 6414,
+        "duplicates": 894,
+        "rejected": 0,
+        "missed": 0,
+        "acks": 7308,
+        "ack_errors": 0,
+        "timeouts": 0
+      },
+      "last": {
+        "wifi": 1,
+        "client": 1,
+        "valid": 1,
+        "accepted": 6439,
+        "duplicates": 894,
+        "rejected": 0,
+        "missed": 0,
+        "acks": 7333,
+        "ack_errors": 0,
+        "timeouts": 0
+      },
+      "delta": {
+        "wifi": 0,
+        "client": 0,
+        "valid": 0,
+        "accepted": 25,
+        "duplicates": 0,
+        "rejected": 0,
+        "missed": 0,
+        "acks": 25,
+        "ack_errors": 0,
+        "timeouts": 0
+      }
+    },
+    "kind": "baseline",
+    "duration_ms": 60000.0
+  },
+  "phases": {
+    "stm_reset": {
+      "label": "STM32 重启",
+      "samples": [
+        {
+          "kind": "stm_reset",
+          "iteration": 1,
+          "command_start_ns": 18958578000000,
+          "command_duration_ms": 109.0,
+          "command_to_first_joy_ms": 406.0,
+          "handshake_to_first_joy_board_ms": 7,
+          "command_to_valid_relay_ms": 422.0,
+          "new_session_sequence1": true,
+          "sensor_relay_restored": true
+        },
+        {
+          "kind": "stm_reset",
+          "iteration": 2,
+          "command_start_ns": 18969000000000,
+          "command_duration_ms": 109.0,
+          "command_to_first_joy_ms": 406.0,
+          "handshake_to_first_joy_board_ms": 7,
+          "command_to_valid_relay_ms": 406.0,
+          "new_session_sequence1": true,
+          "sensor_relay_restored": true
+        },
+        {
+          "kind": "stm_reset",
+          "iteration": 3,
+          "command_start_ns": 18979421000000,
+          "command_duration_ms": 110.0,
+          "command_to_first_joy_ms": 407.0,
+          "handshake_to_first_joy_board_ms": 7,
+          "command_to_valid_relay_ms": 407.0,
+          "new_session_sequence1": true,
+          "sensor_relay_restored": true
+        },
+        {
+          "kind": "stm_reset",
+          "iteration": 4,
+          "command_start_ns": 18989843000000,
+          "command_duration_ms": 125.0,
+          "command_to_first_joy_ms": 407.0,
+          "handshake_to_first_joy_board_ms": 7,
+          "command_to_valid_relay_ms": 407.0,
+          "new_session_sequence1": true,
+          "sensor_relay_restored": true
+        }
+      ],
+      "metrics": [
+        {
+          "key": "command_to_first_joy_ms",
+          "label": "CLI 命令发起至摇杆首帧",
+          "unit": "ms",
+          "n": 4,
+          "minimum": 406.0,
+          "median": 406.5,
+          "maximum": 407.0,
+          "values": [
+            406.0,
+            406.0,
+            407.0,
+            407.0
+          ]
+        },
+        {
+          "key": "handshake_to_first_joy_board_ms",
+          "label": "B 握手完成至摇杆首帧",
+          "unit": "ms",
+          "n": 4,
+          "minimum": 7,
+          "median": 7.0,
+          "maximum": 7,
+          "values": [
+            7,
+            7,
+            7,
+            7
+          ]
+        }
+      ]
+    },
+    "b_reset": {
+      "label": "B 板重启",
+      "samples": [
+        {
+          "kind": "b_reset",
+          "iteration": 1,
+          "release_ns": 19000875000000,
+          "release_to_boot_log_ms": 656.0,
+          "release_to_first_joy_ms": 1015.0,
+          "release_to_valid_sensor_relay_ms": 10187.0,
+          "release_to_mqtt_ms": 15328.0,
+          "local_link_restored": true,
+          "sensor_restored": true,
+          "mqtt_restored": true
+        },
+        {
+          "kind": "b_reset",
+          "iteration": 2,
+          "release_ns": 19026375000000,
+          "release_to_boot_log_ms": 640.0,
+          "release_to_first_joy_ms": 1046.0,
+          "release_to_valid_sensor_relay_ms": 10156.0,
+          "release_to_mqtt_ms": 45671.0,
+          "local_link_restored": true,
+          "sensor_restored": true,
+          "mqtt_restored": true
+        },
+        {
+          "kind": "b_reset",
+          "iteration": 3,
+          "release_ns": 19082218000000,
+          "release_to_boot_log_ms": 641.0,
+          "release_to_first_joy_ms": 1266.0,
+          "release_to_valid_sensor_relay_ms": 10328.0,
+          "release_to_mqtt_ms": 14922.0,
+          "local_link_restored": true,
+          "sensor_restored": true,
+          "mqtt_restored": true
+        }
+      ],
+      "metrics": [
+        {
+          "key": "release_to_first_joy_ms",
+          "label": "EN 释放请求至摇杆首帧",
+          "unit": "ms",
+          "n": 3,
+          "minimum": 1015.0,
+          "median": 1046.0,
+          "maximum": 1266.0,
+          "values": [
+            1015.0,
+            1046.0,
+            1266.0
+          ]
+        },
+        {
+          "key": "release_to_valid_sensor_relay_ms",
+          "label": "EN 释放请求至有效传感器 ACK",
+          "unit": "ms",
+          "n": 3,
+          "minimum": 10156.0,
+          "median": 10187.0,
+          "maximum": 10328.0,
+          "values": [
+            10187.0,
+            10156.0,
+            10328.0
+          ]
+        },
+        {
+          "key": "release_to_mqtt_ms",
+          "label": "EN 释放请求至 MQTT 连接",
+          "unit": "ms",
+          "n": 3,
+          "minimum": 14922.0,
+          "median": 15328.0,
+          "maximum": 45671.0,
+          "values": [
+            15328.0,
+            45671.0,
+            14922.0
+          ]
+        }
+      ]
+    },
+    "a_outage": {
+      "label": "A 板暂停 12 秒",
+      "samples": [
+        {
+          "kind": "a_outage",
+          "iteration": 1,
+          "start_ns": 19107171000000,
+          "release_ns": 19119171000000,
+          "hold_ms": 12000.0,
+          "hold_to_invalid_relay_ms": 5454.0,
+          "release_to_valid_relay_ms": 3797.0,
+          "invalid_marked": true,
+          "sensor_restored": true,
+          "joy_frames_during_outage": 55,
+          "heartbeats_during_outage": 12
+        },
+        {
+          "kind": "a_outage",
+          "iteration": 2,
+          "start_ns": 19132984000000,
+          "release_ns": 19144984000000,
+          "hold_ms": 12000.0,
+          "hold_to_invalid_relay_ms": 2297.0,
+          "release_to_valid_relay_ms": 3766.0,
+          "invalid_marked": true,
+          "sensor_restored": true,
+          "joy_frames_during_outage": 55,
+          "heartbeats_during_outage": 12
+        },
+        {
+          "kind": "a_outage",
+          "iteration": 3,
+          "start_ns": 19158765000000,
+          "release_ns": 19170765000000,
+          "hold_ms": 12000.0,
+          "hold_to_invalid_relay_ms": 4750.0,
+          "release_to_valid_relay_ms": 3797.0,
+          "invalid_marked": true,
+          "sensor_restored": true,
+          "joy_frames_during_outage": 55,
+          "heartbeats_during_outage": 12
+        }
+      ],
+      "metrics": [
+        {
+          "key": "hold_to_invalid_relay_ms",
+          "label": "暂停请求至失效状态 ACK",
+          "unit": "ms",
+          "n": 3,
+          "minimum": 2297.0,
+          "median": 4750.0,
+          "maximum": 5454.0,
+          "values": [
+            5454.0,
+            2297.0,
+            4750.0
+          ]
+        },
+        {
+          "key": "release_to_valid_relay_ms",
+          "label": "恢复请求至有效传感器 ACK",
+          "unit": "ms",
+          "n": 3,
+          "minimum": 3766.0,
+          "median": 3797.0,
+          "maximum": 3797.0,
+          "values": [
+            3797.0,
+            3766.0,
+            3797.0
+          ]
+        }
+      ]
+    }
+  },
+  "host_fault_metrics": {
+    "environment": "production UART source with HAL/RTOS simulation",
+    "timing_kind": "mock RTOS clock, not physical device timing",
+    "cases": [
+      {
+        "case": "handshake_retry",
+        "passed": true,
+        "mock_elapsed_ms": 150,
+        "requests": 2,
+        "confirms": 1,
+        "joystick_tx": 1,
+        "received_bytes": 62,
+        "consumed_bytes": 62,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "confirmation_retry",
+        "passed": true,
+        "mock_elapsed_ms": 150,
+        "requests": 1,
+        "confirms": 2,
+        "joystick_tx": 1,
+        "received_bytes": 62,
+        "consumed_bytes": 62,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "ack_noise_and_stale",
+        "passed": true,
+        "mock_elapsed_ms": 0,
+        "requests": 1,
+        "confirms": 1,
+        "joystick_tx": 2,
+        "received_bytes": 150,
+        "consumed_bytes": 150,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 1,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "ack_timeout_retry",
+        "passed": true,
+        "mock_elapsed_ms": 360,
+        "requests": 1,
+        "confirms": 1,
+        "joystick_tx": 4,
+        "received_bytes": 125,
+        "consumed_bytes": 125,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "failure_rehandshake",
+        "passed": true,
+        "mock_elapsed_ms": 1080,
+        "requests": 2,
+        "confirms": 2,
+        "joystick_tx": 11,
+        "received_bytes": 124,
+        "consumed_bytes": 124,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "sensor_duplicate",
+        "passed": true,
+        "mock_elapsed_ms": 0,
+        "requests": 1,
+        "confirms": 1,
+        "joystick_tx": 1,
+        "received_bytes": 179,
+        "consumed_bytes": 179,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 1,
+        "sensor_duplicates": 2,
+        "sensor_acks": 3
+      },
+      {
+        "case": "sensor_sequence_wrap",
+        "passed": true,
+        "mock_elapsed_ms": 0,
+        "requests": 1,
+        "confirms": 1,
+        "joystick_tx": 1,
+        "received_bytes": 179,
+        "consumed_bytes": 179,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 2,
+        "sensor_duplicates": 1,
+        "sensor_acks": 3
+      },
+      {
+        "case": "sensor_stale",
+        "passed": true,
+        "mock_elapsed_ms": 4001,
+        "requests": 1,
+        "confirms": 1,
+        "joystick_tx": 2,
+        "received_bytes": 122,
+        "consumed_bytes": 122,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 1,
+        "sensor_duplicates": 0,
+        "sensor_acks": 1
+      },
+      {
+        "case": "dma_fifo_overflow_recovery",
+        "passed": true,
+        "mock_elapsed_ms": 0,
+        "requests": 0,
+        "confirms": 0,
+        "joystick_tx": 0,
+        "received_bytes": 529,
+        "consumed_bytes": 17,
+        "fifo_overflows": 1,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 1,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "dma_uart_error_recovery",
+        "passed": true,
+        "mock_elapsed_ms": 0,
+        "requests": 0,
+        "confirms": 0,
+        "joystick_tx": 0,
+        "received_bytes": 7,
+        "consumed_bytes": 7,
+        "fifo_overflows": 0,
+        "uart_errors": 1,
+        "dma_errors": 1,
+        "restarts": 1,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "dma_restart_failure",
+        "passed": true,
+        "mock_elapsed_ms": 0,
+        "requests": 0,
+        "confirms": 0,
+        "joystick_tx": 0,
+        "received_bytes": 0,
+        "consumed_bytes": 0,
+        "fifo_overflows": 0,
+        "uart_errors": 1,
+        "dma_errors": 0,
+        "restarts": 1,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      },
+      {
+        "case": "dma_random_chunks",
+        "passed": true,
+        "mock_elapsed_ms": 0,
+        "requests": 0,
+        "confirms": 0,
+        "joystick_tx": 0,
+        "received_bytes": 198816,
+        "consumed_bytes": 198816,
+        "fifo_overflows": 0,
+        "uart_errors": 0,
+        "dma_errors": 0,
+        "restarts": 0,
+        "parser_rejected": 0,
+        "sensor_received": 0,
+        "sensor_duplicates": 0,
+        "sensor_acks": 0
+      }
+    ]
+  },
+  "configuration_unchanged": {
+    "revision": 8,
+    "temperature_high_centi": 3500,
+    "humidity_high_centi": 8000,
+    "distance_low_cm": 20,
+    "telemetry_period_ms": 60000,
+    "persisted": 1
+  },
+  "dma_final": {
+    "captured_at": "2026-10-14T17:28:29.163208+08:00",
+    "probe_serial": "<LOCAL-PROBE>",
+    "requested_swd_khz": 1000,
+    "counter_address": "0x2000097c",
+    "counters": {
+      "received_bytes": 27125,
+      "consumed_bytes": 27125,
+      "idle_events": 1111,
+      "half_events": 106,
+      "complete_events": 105,
+      "fifo_overflows": 0,
+      "uart_errors": 0,
+      "dma_errors": 0,
+      "restarts": 0,
+      "fifo_high_water": 39,
+      "max_chunk_bytes": 39,
+      "task_stack_free_bytes": 1268,
+      "max_ack_wait_ms": 27,
+      "task_a_stack_free_bytes": 1316,
+      "free_heap_bytes": 10848,
+      "minimum_free_heap_bytes": 10848,
+      "self_test_passed": 1
+    },
+    "dma": {
+      "stream": "DMA1_Stream5",
+      "channel": 4,
+      "enabled": true,
+      "circular": true,
+      "memory_increment": true,
+      "remaining_bytes": 246,
+      "peripheral_address": "0x40004404",
+      "memory_address": "0x20000674"
+    },
+    "uart": {
+      "rx_dma_enabled": true,
+      "idle_interrupt_enabled": true,
+      "rxne_interrupt_enabled": false
+    },
+    "bytes_per_receive_event": 20.518,
+    "measurement_note": "Live SWD samples; not a CPU utilization measurement."
+  },
+  "source": {
+    "ESP32": {
+      "merge_commit": "609ba69d47036f8675159d618c1f74d43ecc55c7",
+      "source_files_verified": 35,
+      "ci_url": "https://github.com/Cchenyii/esp32-ab-sensor/actions/runs/38528685925"
+    },
+    "STM32": {
+      "merge_commit": "5f01d4688ac00e1ddbcaf232d5c67d772f634dbb",
+      "source_files_verified": 18,
+      "ci_url": "https://github.com/Cchenyii/stm32-f407-joystick/actions/runs/38528742208"
+    }
+  },
+  "cloud_delay_evidence": [
+    "I (6147) network_link: Wi-Fi ready ip=<DHCP-address>; UART remains active",
+    "I (6208) cloud_link: SNTP init=ESP_OK; primary=ntp.aliyun.com; TLS awaits valid clock",
+    "I (30618) cloud_link: stats configured=1 connected=0 clock_ready=0 utc_unix=30 attempts=0 connections=0 telemetry=0 pubacks=0 skipped=0 rx_drops=0 errors=0",
+    "I (45664) cloud_link: MQTT connected; subscribing to ThingsBoard attributes/RPC"
+  ],
+  "b_minimum_heap_reported": 107396,
+  "panic_count": 0,
+  "reader_error_count": 0,
+  "limitations": [
+    "Host timing includes USB/serial scheduling; STM reset includes CLI connection overhead.",
+    "Only the handshake-to-JOY metric uses B device ticks.",
+    "Sample sizes are 4/3/3; no p95/p99 or field reliability estimate.",
+    "Simulated RTOS clock results are not physical UART latency.",
+    "No physical wire disconnection, power loss during OTA, full-bandwidth stress, or 24-hour test in this campaign.",
+    "No CPU utilization measured. Console sequence gaps are not a general packet-loss probability."
+  ],
+  "firmware_writes_by_harness": 0,
+  "nvs_writes_requested_by_harness": 0
+}

@@ -24,3 +24,7 @@ __pycache__/
 *.pyc
 .env
 .env.*
+
+build-a/
+
+build-fault-metrics/
