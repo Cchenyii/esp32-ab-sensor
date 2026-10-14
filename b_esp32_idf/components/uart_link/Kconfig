@@ -1,0 +1,9 @@
+menu "STM32 UART link"
+    config APP_UART_ALLOW_LEGACY
+        bool "Accept original STM32 V1 joystick frames before session handshake"
+        default y
+        help
+            Transitional compatibility only. Reboot-safe deduplication requires
+            the STM32 session firmware. Legacy frames are blocked after a
+            session is confirmed.
+endmenu

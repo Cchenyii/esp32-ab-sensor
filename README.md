@@ -141,3 +141,8 @@ esp32-ab-sensor/
 ## 许可证
 
 本项目原创代码使用 [MIT License](LICENSE)。第三方库分别遵循其自身许可证。
+
+## 原生 ESP-IDF 迁移版与 CI
+
+[b_esp32_idf](b_esp32_idf/README.md) 为原生 ESP-IDF v6.1 网关，配套 STM32 会话/DMA 固件；OLED 位于 STM32。
+GitHub Actions 编译原生 B 固件，并通过 GCC/Clang 自动运行 25 项协议/会话回归。

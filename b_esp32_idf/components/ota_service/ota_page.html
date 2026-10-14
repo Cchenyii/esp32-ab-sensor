@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 B · 固件升级</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#172524;background:#f0f4f1;color-scheme:light}*{box-sizing:border-box}body{margin:0;padding:36px 18px}main{max-width:740px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.brand{font-size:12px;letter-spacing:.14em;color:#5b706a}.pill{background:#dcece2;color:#286044;padding:7px 12px;border-radius:30px;font-size:12px}h1{font-size:30px;letter-spacing:-.04em;margin:8px 0 6px}p{color:#61746b;font-size:14px;line-height:1.7;margin:0}.card{background:#fff;border:1px solid #dce4de;border-radius:20px;padding:26px;margin-bottom:16px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:24px 0}.label{font-size:12px;color:#74867c;margin-bottom:6px}.value{font-size:20px;font-weight:650;overflow-wrap:anywhere}.line{border-top:1px solid #e9eee9;margin:18px 0}label{display:block;font-size:13px;font-weight:600;margin-bottom:8px}input{width:100%;border:1px solid #d6dfd8;border-radius:12px;padding:13px;background:#fafcfa;font-size:14px;color:#233e31}input[type=file]{padding:20px;border-style:dashed;margin-bottom:18px}button{width:100%;padding:14px;border:0;border-radius:12px;background:#245940;color:white;font-size:15px;font-weight:600;cursor:pointer;margin-top:18px}button:disabled{background:#a7b5ac;cursor:default}progress{width:100%;height:8px;accent-color:#245940;margin:20px 0 10px}#message{font-size:14px;line-height:1.7;white-space:pre-wrap;color:#345542}.foot{font-size:12px;color:#7d8f83;margin-top:20px}.error{color:#a42f2f!important}.note{background:#f5f8f5;border-radius:12px;padding:14px;font-size:13px;color:#61746b;line-height:1.7}.subtle{font-family:ui-monospace,monospace;font-size:11px;color:#74867c;overflow-wrap:anywhere}@media(max-width:520px){body{padding:22px 12px}.card{padding:20px}h1{font-size:25px}.stats{grid-template-columns:1fr 1fr}.value{font-size:18px}}
+</style></head><body><main>
+<header><div><div class="brand">ESP32 · B BOARD</div><h1>固件升级</h1><p>上传新固件，启动检查通过后自动生效。</p></div><span class="pill" id="connection">正在连接</span></header>
+<section class="card"><div class="stats"><div><div class="label">当前版本</div><div class="value" id="version">—</div></div><div><div class="label">启动检查</div><div class="value" id="health">—</div></div><div><div class="label">升级窗口</div><div class="value" id="window">未开启</div></div></div><div class="note" id="rollback">检查失败时，会自动返回上一版固件。</div></section>
+<section class="card"><label for="firmware">选择 B 板固件</label><input id="firmware" type="file" accept=".bin"><div class="subtle" id="fileinfo">请选择电脑编译出的应用 .bin 文件。</div><div class="line"></div><label for="key">升级口令</label><input id="key" type="password" autocomplete="off" placeholder="通过 USB 工具开启升级窗口后获取"><p class="foot">电脑和 B 板须连接同一热点。升级口令只在本次窗口内有效。</p><button id="upgrade" disabled>上传并升级</button><progress id="progress" value="0" max="100"></progress><div id="message">等待选择固件和开启升级窗口。</div></section>
+<p class="foot">上传中断或文件校验失败时，设备继续运行当前固件。本页用于同一可信局域网内的升级。</p>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id);let status=null,busy=false,restarting=false,expected='',watchUntil=0;
+// SHA-256 fallback for browsers where Web Crypto is unavailable on local HTTP.
+function sha256(bytes){
+ const K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+ const H=new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+ const padded=new Uint8Array(Math.ceil((bytes.length+9)/64)*64);padded.set(bytes);padded[bytes.length]=128;
+ const view=new DataView(padded.buffer);view.setUint32(padded.length-8,Math.floor(bytes.length/0x20000000));view.setUint32(padded.length-4,(bytes.length*8)>>>0);
+ const W=new Uint32Array(64),r=(x,n)=>(x>>>n)|(x<<(32-n));
+ for(let offset=0;offset<padded.length;offset+=64){
+  for(let i=0;i<16;i++)W[i]=view.getUint32(offset+i*4);
+  for(let i=16;i<64;i++){let x=W[i-15],y=W[i-2];W[i]=(W[i-16]+(r(x,7)^r(x,18)^(x>>>3))+W[i-7]+(r(y,17)^r(y,19)^(y>>>10)))>>>0;}
+  let[a,b,c,d,e,f,g,h]=H;
+  for(let i=0;i<64;i++){let t1=(h+(r(e,6)^r(e,11)^r(e,25))+((e&f)^(~e&g))+K[i]+W[i])>>>0,t2=((r(a,2)^r(a,13)^r(a,22))+((a&b)^(a&c)^(b&c)))>>>0;h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;}
+  [a,b,c,d,e,f,g,h].forEach((v,i)=>H[i]=(H[i]+v)>>>0);
+ }
+ return Array.from(H,n=>n.toString(16).padStart(8,'0')).join('');
+}
+function message(text,error=false){$('message').textContent=text;$('message').className=error?'error':'';}
+function enable(){const file=$('firmware').files[0];$('upgrade').disabled=busy||!status?.healthy||!status?.armed_remaining_s||!file||!(/^[0-9a-f]{64}$/i.test($('key').value.trim()));}
+async function refresh(){
+ if(busy&&!restarting)return;
+ try{const response=await fetch('/api/ota',{cache:'no-store',signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('status');status=await response.json();
+  $('connection').textContent='已连接';$('version').textContent=status.version;$('health').textContent=status.healthy?'已通过':'检查中';$('window').textContent=status.armed_remaining_s?`${status.armed_remaining_s} 秒`:'未开启';
+  $('rollback').textContent=status.last_invalid_version?`曾回退失败版本 ${status.last_invalid_version}。当前运行 ${status.version}。`:'检查失败时，会自动返回上一版固件。';
+  if(restarting){if(status.version===expected&&status.healthy){message(`升级完成，版本 ${status.version} 已通过启动检查。`);restarting=false;busy=false;}
+   else if(status.last_invalid_version===expected&&status.healthy){message(`新固件未通过检查，已回退到 ${status.version}。`,true);restarting=false;busy=false;}
+   else if(Date.now()>watchUntil){message('等待启动检查超时，请查看设备当前状态。',true);restarting=false;busy=false;}}
+ }catch(error){$('connection').textContent=restarting?'正在重启':'连接暂时中断';if(restarting&&Date.now()>watchUntil){message('设备连接尚未恢复，请检查电源和热点。',true);restarting=false;busy=false;}}
+ enable();
+}
+$('firmware').addEventListener('change',()=>{const file=$('firmware').files[0];$('fileinfo').textContent=file?`${file.name} · ${(file.size/1024).toFixed(1)} KB`:'请选择电脑编译出的应用 .bin 文件。';enable();});$('key').addEventListener('input',enable);
+$('upgrade').addEventListener('click',async()=>{
+ const file=$('firmware').files[0];if(!file||busy)return;if(file.size>0x180000){message('固件超过应用分区容量，请选择正确的 B 板应用文件。',true);return;}
+ busy=true;enable();message('正在计算文件校验值…');
+ try{const body=await file.arrayBuffer(),digest=sha256(new Uint8Array(body));message('正在上传，请保持电源和热点连接。');
+  const xhr=new XMLHttpRequest();xhr.open('POST','/api/update');xhr.timeout=130000;xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.setRequestHeader('X-OTA-Key',$('key').value.trim());xhr.setRequestHeader('X-Firmware-SHA256',digest);
+  xhr.upload.onprogress=event=>{if(event.lengthComputable)$('progress').value=Math.round(event.loaded*100/event.total);};
+  xhr.onload=()=>{let result;try{result=JSON.parse(xhr.responseText);}catch(error){result={status:'无法读取设备回复'};}
+   $('key').value='';if(xhr.status===200&&result.success){expected=result.version;restarting=true;watchUntil=Date.now()+120000;message(`上传和校验完成，等待版本 ${expected} 启动检查…`);}
+   else{busy=false;message(`升级未完成：${result.status}。请重新开启升级窗口后再试。`,true);}enable();};
+  xhr.onerror=xhr.ontimeout=()=>{busy=false;$('key').value='';message('连接中断。请重新读取当前版本，确认设备是否已经重启，再决定重试。',true);enable();};xhr.send(body);
+ }catch(error){busy=false;message('无法读取固件文件，请重新选择。',true);enable();}
+});refresh();setInterval(()=>{if(!document.hidden)refresh();},3000);
+</script></body></html>

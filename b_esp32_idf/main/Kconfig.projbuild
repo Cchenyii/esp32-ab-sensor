@@ -1,0 +1,15 @@
+menu "B board bring-up"
+    config APP_BOOT_BUTTON_GPIO
+        int "Active-low button GPIO (default: BOOT on GPIO0)"
+        range 0 33
+        default 0
+        help
+            Confirm this GPIO against your board schematic. Do not select
+            GPIO6 through GPIO11: these pins are normally used by flash.
+            The input uses an internal pull-up; no LED is required.
+
+    config APP_HEARTBEAT_PERIOD_MS
+        int "Heartbeat log interval (milliseconds)"
+        range 100 60000
+        default 1000
+endmenu

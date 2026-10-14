@@ -1,0 +1,9 @@
+menu "Local OTA"
+    config OTA_DIAGNOSTIC_FAIL_HEALTH
+        bool "Diagnostic image: deliberately fail pending-image health check"
+        default n
+        help
+            Only for an explicit hardware rollback acceptance run. A pending
+            image built with this option rolls back after ten seconds.
+            Leave disabled for normal firmware.
+endmenu

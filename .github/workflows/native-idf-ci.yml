@@ -1,0 +1,56 @@
+name: Native ESP32 firmware and protocol regression
+on:
+  push:
+    paths: ['b_esp32_idf/**', '.github/workflows/native-idf-ci.yml']
+  pull_request:
+    paths: ['b_esp32_idf/**', '.github/workflows/native-idf-ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-idf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  host-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Configure actual protocol and session sources
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: cmake -S b_esp32_idf/host-tests -B build-host -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
+      - name: Build with strict compiler warnings
+        run: cmake --build build-host --parallel 2
+      - name: Run protocol and session regression
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-host --output-on-failure --output-junit results.xml
+      - name: Preserve test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: esp32-host-${{ matrix.compiler }}
+          path: build-host/results.xml
+          if-no-files-found: warn
+          retention-days: 14
+  esp32-firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Compile with pinned ESP-IDF and placeholder device config
+        run: |
+          cp b_esp32_idf/config/wifi_credentials.example.h b_esp32_idf/config/wifi_credentials.h
+          cp b_esp32_idf/config/thingsboard_credentials.example.h b_esp32_idf/config/thingsboard_credentials.h
+          docker run --rm -v "$PWD/b_esp32_idf:/project" -w /project espressif/idf:v6.1 idf.py build
