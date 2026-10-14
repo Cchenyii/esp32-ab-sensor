@@ -1,148 +1,45 @@
-# ESP32 A/B 双板传感器链路
+# ESP32 嵌入式终端通信与 OTA 升级系统
 
-两块 ESP32 组成的嵌入式演示项目：**A 板采集温湿度与超声波距离，经 WiFi TCP 发到 B 板；B 板解析协议并在 OLED 上显示。**
-
-适合秋招作品集展示：FreeRTOS 多任务、二进制应用层协议、CRC、非阻塞 ACK/重传、mDNS 发现、任务看门狗、**B 板 HTTP OTA + OLED 进度**。
-
-## 架构
+由 ESP32 A 传感器板、ESP32 B 网关及 STM32F407 交互终端组成。当前运行版采用 A 的 Arduino 1.3.1、B 的原生 ESP-IDF 0.7.1 和 STM32 会话 UART/DMA 固件。OLED 接在 STM32 上。
 
 ```text
-[A: DHT22 + HC-SR04]                         [B: SSD1306 OLED]
- SensorTask ──queue──> TCPTask ──TCP :8080──> ServerTask ──queue──> DisplayTask
-                              <──── ACK ─────
-                                     ^
-[STM32F407 joystick] ──UART V1 :115200──────> UartLinkTask
-
-[Browser] ──HTTP :80 / firmware.bin─────────> OtaTask ──> dual OTA partitions
-                     mDNS: esp32-b.local
+A DHT22 / HC-SR04 -- TCP 8080 --> B ESP-IDF gateway -- MQTT TLS --> ThingsBoard
+                                  |                       cloud telemetry/config
+                                  | UART session + ACK
+                                  v
+                           STM32F407 joystick + OLED
+Browser -- local HTTP --> B inactive OTA slot --> health check or rollback
 ```
 
-| 角色 | 职责 | 主要技术点 |
-|------|------|------------|
-| **A** | 传感器采集 + TCP 客户端 | FreeRTOS、定点编码、有限重传、TCP keepalive |
-| **B** | TCP 服务端 + OLED + **STM32 UART 摇杆** | mDNS、环形缓冲、序号去重、TWDT、Serial2 V1 |
+## 当前代码入口
 
-协议细节见 [`docs/ESP32_AB_PROTOCOL.md`](docs/ESP32_AB_PROTOCOL.md)。STM32 联调见下方「STM32 UART」。
+- [A 板源码](a_esp32/) 与 [mDNS 发现及构建](docs/A_DISCOVERY.md)：2 秒采样，DHCP 和 mDNS 自动发现，Arduino-ESP32 固定 3.3.11。
+- [B 原生 ESP-IDF 工程](b_esp32_idf/README.md)：固定 ESP-IDF v6.1，UART/TCP/云任务，MQTT TLS、NVS 配置、双分区 HTTP OTA。
+- [STM32 配套工程](https://github.com/Cchenyii/stm32-f407-joystick)：双通道 ADC、FreeRTOS、USART2 循环 DMA 和 SSD1306 OLED。
+- [当前三板状态](b_esp32_idf/docs/PROJECT_STATUS.md)、[故障验收](b_esp32_idf/docs/FAULT_INJECTION_STATUS.md) 与 [CI](b_esp32_idf/docs/CI.md)。
 
-## 硬件与引脚
+## 硬件连接
 
-### A 板
+A：DHT22 DATA GPIO4，HC-SR04 TRIG GPIO5 / ECHO GPIO18。超声波模块若输出 5V，ECHO 必须按硬件电平要求转换至 ESP32 可接受范围。
 
-| 外设 | 引脚 |
-|------|------|
-| DHT22 DATA | GPIO 4 |
-| 超声波 TRIG | GPIO 5 |
-| 超声波 ECHO | GPIO 18 |
+B GPIO16 RX 接 STM32 PA2 TX；B GPIO17 TX 接 STM32 PA3 RX；GND 共地；115200 bit/s。摇杆接 STM32 PA0/PA1、按键 PA4；OLED I2C1 PB6/PB7。
 
-### B 板
+## 可靠通信与升级
 
-| 外设 | 引脚 |
-|------|------|
-| OLED I2C SCL | GPIO 22 |
-| OLED I2C SDA | GPIO 21 |
-| OLED 驱动 | SSD1306 128×64（U8g2） |
-| STM32 链路 RX2 / TX2 | **GPIO 16 / 17**（115200，V1 `JOYSTICK_DATA`） |
+二进制 V1 帧带长度、32 位序号和 CRC-16/CCITT-FALSE。流式解析适配半帧、粘包与噪声；应用层 ACK、有限重试、去重和 UART 会话握手负责跨重启恢复。TCP 的可靠字节流不能代替业务完成确认。
 
-### STM32 UART（可选联调）
+B 通过 MQTT TLS 上传环境与摇杆最新快照，当前云端周期 60 秒。远程阈值通过 NVS 保存。本地 HTTP OTA 写未运行的应用分区，校验后切换启动分区；新程序通过健康检查后确认，失败回滚。当前未实现固件签名、Secure Boot 和离线历史补传。
 
-| STM32F407 | ESP32 B |
-|-----------|---------|
-| PA2 USART2_TX | GPIO16 RX2 |
-| PA3 USART2_RX | GPIO17 TX2 |
-| GND | GND |
+## 构建与凭据
 
-B 固件 ≥ **1.2.0** 后，USB 串口会打印 `JOY seq=...`；若 OLED 仍接在 B 上会显示 Joystick 页。STM32 工程：https://github.com/Cchenyii/stm32-f407-joystick
+按各工程 README 安装固定依赖。A 从 secrets.h.example 创建本机 secrets.h；B 从 config/ 中的示例创建本机 Wi-Fi 和 ThingsBoard 配置。真实凭据不提交，CI 只使用占位配置。
 
-两板需接同一 WiFi（可用手机热点）。
+合计 48 个不同电脑端回归用例（B 25、STM32 23），自动使用 GCC/Clang 与 ASan/UBSan；完整 ESP32/ARM 构建另列检查。CI 不等同于实板验证。
 
-## 软件依赖
+## 历史 Arduino B 版本
 
-- Arduino IDE + **arduino-esp32 3.x**（本项目在 3.3.x 验证）
-- 库：`DHT sensor library`、`NewPing`、`U8g2`
-
-## 快速开始
-
-1. 克隆并进入本仓库：
-
-```bash
-git clone https://github.com/Cchenyii/esp32-ab-sensor.git
-cd esp32-ab-sensor
-```
-
-2. 为每块板配置 WiFi（勿提交真实密码）：
-
-```text
-cd a_esp32
-copy secrets.h.example secrets.h
-# 编辑 secrets.h 填入 WIFI_SSID / WIFI_PASSWORD
-
-cd ..\b_esp32
-copy secrets.h.example secrets.h
-# 同样编辑 secrets.h
-```
-
-3. 在 Arduino IDE 中分别打开：
-   - `a_esp32/a_esp32.ino`
-   - `b_esp32/b_esp32.ino`
-4. 板型选择对应 ESP32 开发板，串口监视器 **115200**。
-5. **先烧录并上电 B 板**，再烧录 A 板。
-
-成功标志示例：
-
-- A：`Protocol self-test: OK`，周期性 ACK 统计
-- B：`Protocol frames=...` 增长且错误计数为 0，OLED 刷新温湿度与距离
-- B OTA：浏览器访问 `http://esp32-b.local/` 可上传 `.bin`，OLED 显示进度（见 [`docs/OTA.md`](docs/OTA.md)）
-
-实机验收条目与串口现象见 [`docs/TEST_RECORD.md`](docs/TEST_RECORD.md)。
-
-## 协议要点（V1）
-
-- 帧：`AA 55 | ver | type | seq | len | payload | CRC16-CCITT-FALSE`
-- `SENSOR_DATA`：温度/湿度定点 ×100 + 距离 cm（6 字节）
-- A 侧非阻塞等待 ACK，超时约 1200 ms，最多重传 2 次
-- B 侧按序号去重，避免重复显示/统计
-
-## 已知限制
-
-- **手机热点不稳定**时可能出现短暂断连；当前设计约数秒内靠 mDNS/缓存 IP 与重连恢复，可接受偶发重连。
-- mDNS 偶发返回 `0.0.0.0`：实现会校验后再缓存，并回退到上次有效 IP。
-- `protocol.cpp` / `protocol.h` 在 A/B 目录各有一份相同副本（Arduino 草图不便跨目录共享）。
-
-## 仓库结构
-
-```text
-esp32-ab-sensor/
-├── a_esp32/                 # A 板草图
-│   ├── a_esp32.ino
-│   ├── protocol.h / .cpp
-│   ├── secrets.h.example
-│   └── secrets.h            # 本地文件，已 gitignore
-├── b_esp32/                 # B 板 TCP/UART/OLED/OTA
-│   ├── b_esp32.ino
-│   ├── display_msg.h
-│   ├── protocol.h / .cpp
-│   └── secrets.h.example
-├── docs/
-│   ├── ESP32_AB_PROTOCOL.md
-│   ├── OLED_I2C_NOTES.md
-│   ├── OTA.md
-│   └── TEST_RECORD.md
-├── README.md
-├── LICENSE
-└── .gitignore
-```
-
-## 后续规划（可选）
-
-1. ~~B 板 HTTP OTA + OLED 进度~~（已完成，见 [`docs/OTA.md`](docs/OTA.md)）
-2. A 板 OTA 或经 B 集中升级
-3. Demo 视频写入作品集
+`b_esp32/` 及顶层早期协议/OLED/OTA 记录保留历史 Arduino B 方案，其 OLED 连接和无会话帧说明不适用于当前三板运行版本。当前 B 入口为 `b_esp32_idf/`。
 
 ## 许可证
 
-本项目原创代码使用 [MIT License](LICENSE)。第三方库分别遵循其自身许可证。
-
-## 原生 ESP-IDF 迁移版与 CI
-
-[b_esp32_idf](b_esp32_idf/README.md) 为原生 ESP-IDF v6.1 网关，配套 STM32 会话/DMA 固件；OLED 位于 STM32。
-GitHub Actions 编译原生 B 固件，并通过 GCC/Clang 自动运行 25 项协议/会话回归。
+原创代码使用 [MIT License](LICENSE)，第三方组件遵循各自许可证。

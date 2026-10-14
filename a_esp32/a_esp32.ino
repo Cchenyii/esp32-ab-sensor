@@ -11,6 +11,11 @@
 #include <lwip/tcp.h>
 #include "protocol.h"
 #include "secrets.h"
+#include "peer_discovery.h"
+#include "esp_arduino_version.h"
+
+static_assert(ESP_ARDUINO_VERSION_MAJOR == 3 && ESP_ARDUINO_VERSION_MINOR == 3 &&
+              ESP_ARDUINO_VERSION_PATCH == 11, "Use Arduino-ESP32 3.3.11");
 
 // NetworkClient (Arduino-ESP32 3.x) has no keepAlive(); use setsockopt instead.
 static void enableTcpKeepAlive(WiFiClient &c) {
@@ -41,7 +46,7 @@ static bool writeCompleteFrame(WiFiClient& connection,
 
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
-const char* serverHostname = "esp32-b.local";
+const char* serverHostname = "esp32-b";
 const int serverPort = 8080;
 
 #define DHTPIN 4
@@ -59,7 +64,7 @@ DHT dht(DHTPIN, DHTTYPE);
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 WiFiClient client;
 QueueHandle_t sensorQueue;
-IPAddress cachedIP;
+PeerDiscovery discovery(serverHostname, serverPort, SERVER_IP_FALLBACK);
 
 void SensorTask(void* pv) {
   SensorData data;
@@ -108,6 +113,7 @@ void TCPTask(void* pv) {
 
   while (1) {
     if (WiFi.status() != WL_CONNECTED) {
+      discovery.reset();
       client.stop();
       ackParser.reset();
       WiFi.disconnect();
@@ -119,50 +125,18 @@ void TCPTask(void* pv) {
       }
       continue;
     }
+    if (discovery.updateNetwork()) {
+      client.stop();
+      ackParser.reset();
+      Serial.printf("A network ready ip=%s target=esp32-b.local:%d\n",
+                    WiFi.localIP().toString().c_str(), serverPort);
+    }
 
     if (!client.connected()) {
       if ((xTaskGetTickCount() - lastAttempt) > retryDelay) {
         lastAttempt = xTaskGetTickCount();
-        IPAddress ip;
-
-        // --- mDNS primary discovery (project feature) ---
-        bool ipValid = false;
         const char* ipSource = "none";
-        for (int tryN = 0; tryN < 3 && !ipValid; tryN++) {
-          IPAddress mdnsIp;
-          bool mdnsOk = WiFi.hostByName(serverHostname, mdnsIp);
-          ipValid = mdnsOk && mdnsIp != IPAddress(0, 0, 0, 0);
-          if (ipValid) {
-            ip = mdnsIp;
-            cachedIP = mdnsIp;
-            ipSource = "mDNS";
-          } else if (tryN < 2) {
-            vTaskDelay(pdMS_TO_TICKS(300));
-          }
-        }
-
-        if (!ipValid && cachedIP != IPAddress(0, 0, 0, 0)) {
-          ip = cachedIP;
-          ipValid = true;
-          ipSource = "cache";
-        }
-
-        if (!ipValid && SERVER_IP_FALLBACK != nullptr &&
-            SERVER_IP_FALLBACK[0] != '\0' &&
-            ip.fromString(SERVER_IP_FALLBACK)) {
-          ipValid = true;
-          ipSource = "fallback";
-        }
-
-        if (!ipValid) {
-          Serial.println("B not found (mDNS/cache/fallback all failed)");
-          vTaskDelay(pdMS_TO_TICKS(1000));
-          continue;
-        }
-
-        Serial.printf("Connecting to %s via %s ...\n",
-                      ip.toString().c_str(), ipSource);
-        bool connOk = client.connect(ip, serverPort);
+        const bool connOk = discovery.connect(client, ipSource);
         if (connOk) {
           client.setTimeout(50);
           client.setNoDelay(true);
@@ -292,13 +266,16 @@ void TCPTask(void* pv) {
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("A app=1.3.1 Arduino-ESP32=3.3.11 target=esp32");
   Serial.println(SensorProtocol::selfTest()
                      ? "Protocol self-test: OK"
                      : "Protocol self-test: FAILED");
+  if (WiFi.setSleep(false)) Serial.println("Wi-Fi modem sleep=disabled");
+  else Serial.println("Wi-Fi modem sleep setting failed");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) vTaskDelay(pdMS_TO_TICKS(500));
   dht.begin();
-  cachedIP = IPAddress(0, 0, 0, 0);  // filled only after a successful mDNS resolve
+  discovery.reset();
   sensorQueue = xQueueCreate(5, sizeof(SensorData));
   xTaskCreate(SensorTask, "Sens", 4096, NULL, 1, NULL);
   xTaskCreate(TCPTask, "TCP", 4096, NULL, 2, NULL);
