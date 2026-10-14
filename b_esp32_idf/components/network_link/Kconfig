@@ -1,0 +1,16 @@
+menu "A board Wi-Fi and TCP link"
+    config APP_WIFI_MODEM_SLEEP
+        bool "Enable Wi-Fi modem sleep"
+        default n
+        help
+            Disabling modem sleep reduces TCP and multicast receive latency
+            on this USB-powered gateway, at the cost of greater power use.
+    config APP_SENSOR_STALE_MS
+        int "Invalidate sensor snapshot after no new data (ms)"
+        range 4000 20000
+        default 6000
+    config APP_TCP_VALID_TIMEOUT_MS
+        int "Close connection after no new valid sensor data (ms)"
+        range 10000 60000
+        default 20000
+endmenu
