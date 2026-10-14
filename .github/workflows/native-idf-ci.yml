@@ -1,6 +1,7 @@
 name: Native ESP32 firmware and protocol regression
 on:
   push:
+    branches: [master]
     paths: ['b_esp32_idf/**', '.github/workflows/native-idf-ci.yml']
   pull_request:
     paths: ['b_esp32_idf/**', '.github/workflows/native-idf-ci.yml']
